@@ -1,0 +1,215 @@
+				Kafka fundamentals
+.....................................................................................
+What is kafka ? Apache Kafka
+
+Kafka is a java program, written in java.
+
+Kafka was originally developed at Linkedin, and later it was open sourced, 
+Jay Kreps, Neha ,and juno Rao who created kafka.
+
+If you want to understand kafka , just think about , How logs are working.
+
+Log is just information about what happend in your system.
+for instance, some warnings, some errors, some info,tracing.
+
+Log information is recored in a file which is called log file.
+
+How log works?
+ log works based on the concept called append only, which is mere file io.
+file io involves read and write something(data).
+
+Writing data into file in two mode.
+
+=>replace mode  
+   data is written into file which will be replaced or edited later.
+=>Append only mode
+   data is written into file at end of every line just add entry at last line of file, which is called append only
+
+
+Kafka is based on log, Kafka is just logger system.
+
+Kafak is based on commit log.
+
+What is commit log?
+    In data management platforms, a commit is making of set of tenative changes permanent.
+ making the end of a transaction and providing Durablity to ACID transactions.
+The record of commits is called "commit log".
+
+What Kafka is going to record into commit log?
+   Kafka was desigend to capture informations(data) or events about system.
+ What is happening in the software system, i want to record every thing.
+
+
+What is event?
+  something that happens, or happened.
+An event records the fact that "something happened" in the world or in your biz, or in your life, around you.
+
+eg:
+  today stock avg price is 100$
+  i met my friend yesterday at east coast road
+  Made a payment of $500 to Ramesh
+
+Imagine i need some body/something should record every activity of my life from early moring when i get up and till sleep.
+
+ There is a system to record every events of your life that is called kafka.
+
+Kafka is event recorder, Kafaka records events happened in the system.
+
+Kafak is event processing software, which process events.
+
+Events Types:
+............
+1.Past events - Happened
+      Made a payment of $500 to Ramesh
+2.present events - on going / on progress  events
+
+Event Streams:
+.............
+Stream is nothing but  on going or on progress over period of time.
+We can record on going events /on progress events into system
+
+
+"An Event is any type of action or incident or chage that's idenfified or recorded by software or applications eg a payment, a website click or temperature reading, along with with a description of what happended"
+
+"A event is a coimbination of notification", the element of when-ness that can be used to trigger some other activity and state.
+
+"event contains two things"
+ =>What happened - name of the event
+ =>State - data
+
+
+state:
+.......
+ The state is nothing data 
+
+How generally data/state is stored?
+   information is stored in database as table which represents the state of something
+eg user- id,name,city
+
+can we store events in databases?
+ We cant  store all events in the database
+
+Modern data modeling:
+ Now a days instead of thingking "things(Customer,Order,Payment)" first, people starts thinking events first
+ instead of stroing things into db, we store events.
+
+events also has some state like "things"
+
+"events has some description of what happened with it, but primary idea is that event is an indication in time that thing took place"
+    
+      "You cant store every events happened or happing in the system into db"
+
+How do you store events?
+  Logs - Log is structured and the sequence of the events occured in the method calls.
+.....................................................................................
+			  What is apache kafka?
+
+Kafka is a software system for managining these logs using a fairly standard,the same historical term called "topics".
+
+What is topic?
+ Topic is logical structure to store events which is similar to database schema and database table
+
+What is event according to kafka?
+
+  Event is like key-value pair structure just like table row of data
+
+Topic is logical structure which stores sequence of information
+Topic is log of events.
+
+Features of logics:
+=>logs are easy to understand
+=>logs are append only
+=>logs are immutable
+=>logs are highly durable=>By default all events are recorded into file system, there is no concept like non durable that is we never store data in memory.
+=>Can only seek by offset, not indexed
+.....................................................................................
+			Kafka is highly Distributed
+.....................................................................................
+Traditionally, log processors are scalable or highly available.
+Kafka is distributed log processing system, which is scals log data into multiple system.
+...................................................................................
+			Kafak Distribution - Kafka setup
+..................................................................................
+
+Kafka distribution:
+ Kafka is availble in two distribution
+
+1.Apache Kafka
+  It is opensource version of kafka
+2.Confulent kafka
+  It is abstraction of apache kafka , commerical version of Apache kafka
+
+Apache Kafka vs Confulent kafka:
+https://www.confluent.io/apache-kafka-vs-confluent/
+
+
+Platforms:
+1.bare metal 
+ kafka is distributed for all os
+
+1.windows : may be good for basic use cases
+2.linux  : recommended for advanced use cases
+3.mac : recommended for advanced use cases.
+
+2.VM env
+  you can setup kafka on any industry standard vms -  oracle virtual box
+
+3.Container based distributed - docker and kubernets
+    it is highly recommend for dev and also even in productions.
+....................................................................................
+			Linux Setup
+................................................................................
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
