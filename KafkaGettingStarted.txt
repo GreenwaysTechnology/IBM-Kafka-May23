@@ -290,7 +290,9 @@ How to build?
 
 after building again start the server
 
- ./bin/zookeeper-server-start.sh  config/zookeeper.propertiesSLF4J: Class path contains multiple SLF4J bindings.
+ ./bin/zookeeper-server-start.sh  config/zookeeper.properties
+
+SLF4J: Class path contains multiple SLF4J bindings.
 SLF4J: Found binding in [jar:file:/home/subugee/ibmkafkamay23/kafka-3.4.0-src/tools/build/dependant-libs-2.13.10/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]
 SLF4J: Found binding in [jar:file:/home/subugee/ibmkafkamay23/kafka-3.4.0-src/trogdor/build/dependant-libs-2.13.10/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]
 SLF4J: Found binding in [jar:file:/home/subugee/ibmkafkamay23/kafka-3.4.0-src/connect/runtime/build/dependant-libs/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]
@@ -332,7 +334,7 @@ When you write message(event),it always goes on the end.
 
 When you read message from the logs by seeking offset in the log.
 
-Logs are fundamental durable things, Traditional messaging messing systems have topics and queues, which store messages temporarily to buffer them between source and designation
+Logs are fundamental durable things, Traditional messaging  systems have topics and queues, which store messages temporarily to buffer them between source and designation
 
 Since topics are logs, which is always permenant.
 
@@ -477,6 +479,7 @@ Option                                   Description
 --create                                 Create a new topic.
 
 ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic todo-topic
+
 Created topic todo-topic.
 
 After creating topic, you can explore log file location
@@ -666,9 +669,277 @@ How to publish events?
 >Hello Kafka
 >
 Press Ctrl Key to come out from the REPL prompt.
+.....................................................................................				  Consumer
+....................................................................................
+How to consume or process messages/events ?
+=>Find kakfa topic name eg todo-topic
+=>Find host name and port eg localhost:9092
+=>if you want to read future message(Current message being published)
+=>if you want to read histrical message , from the begining
+
+
+./bin/kafka-console-consumer.sh --help
+
+Option                                   Description
+------                                   -----------
+--bootstrap-server <String: server to    REQUIRED: The server(s) to connect to.
+  connect to>
+--consumer-property <String:             A mechanism to pass user-defined
+  consumer_prop>                           properties in the form key=value to
+                                           the consumer.
+--consumer.config <String: config file>  Consumer config properties file. Note
+                                           that [consumer-property] takes
+                                           precedence over this config.
+--enable-systest-events                  Log lifecycle events of the consumer
+                                           in addition to logging consumed
+                                           messages. (This is specific for
+                                           system tests.)
+--formatter <String: class>              The name of a class to use for
+                                           formatting kafka messages for
+                                           display. (default: kafka.tools.
+                                           DefaultMessageFormatter)
+--formatter-config <String: config       Config properties file to initialize
+  file>                                    the message formatter. Note that
+                                           [property] takes precedence over
+                                           this config.
+--from-beginning                         If the consumer does not already have
+                                           an established offset to consume
+                                           from, start with the earliest
+                                           message present in the log rather
+                                           than the latest message.
+--group <String: consumer group id>      The consumer group id of the consumer.
+--help                                   Print usage information.
+--include <String: Java regex (String)>  Regular expression specifying list of
+                                           topics to include for consumption.
+--isolation-level <String>               Set to read_committed in order to
+                                           filter out transactional messages
+                                           which are not committed. Set to
+                                           read_uncommitted to read all
+                                           messages. (default: read_uncommitted)
+--key-deserializer <String:
+  deserializer for key>
+--max-messages <Integer: num_messages>   The maximum number of messages to
+                                           consume before exiting. If not set,
+                                           consumption is continual.
+--offset <String: consume offset>        The offset to consume from (a non-
+                                           negative number), or 'earliest'
+                                           which means from beginning, or
+                                           'latest' which means from end
+                                           (default: latest)
+--partition <Integer: partition>         The partition to consume from.
+                                           Consumption starts from the end of
+                                           the partition unless '--offset' is
+                                           specified.
+--property <String: prop>                The properties to initialize the
+                                           message formatter. Default
+                                           properties include:
+                                          print.timestamp=true|false
+                                          print.key=true|false
+                                          print.offset=true|false
+                                          print.partition=true|false
+                                          print.headers=true|false
+                                          print.value=true|false
+                                          key.separator=<key.separator>
+                                          line.separator=<line.separator>
+                                          headers.separator=<line.separator>
+                                          null.literal=<null.literal>
+                                          key.deserializer=<key.deserializer>
+                                          value.deserializer=<value.
+                                           deserializer>
+                                          header.deserializer=<header.
+                                           deserializer>
+                                         Users can also pass in customized
+                                           properties for their formatter; more
+                                           specifically, users can pass in
+                                           properties keyed with 'key.
+                                           deserializer.', 'value.
+                                           deserializer.' and 'headers.
+                                           deserializer.' prefixes to configure
+                                           their deserializers.
+--skip-message-on-error                  If there is an error when processing a
+                                           message, skip it instead of halt.
+--timeout-ms <Integer: timeout_ms>       If specified, exit if no message is
+                                           available for consumption for the
+                                           specified interval.
+--topic <String: topic>                  The topic to consume on.
+--value-deserializer <String:
+  deserializer for values>
+--version                                Display Kafka version.
+--whitelist <String: Java regex          DEPRECATED, use --include instead;
+  (String)>                                ignored if --include specified.
+                                           Regular expression specifying list
+                                           of topics to include for consumption.
 
 
 
+
+ ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic todo-topic --from-beginning
+
+Hello IBM
+Hello Kafka
+How are you?
+How is kafka topic
+.....................................................................................
+		   if you want to publish events and consume in live
+
+--from-beginning
+   option reads all events first , then it starts reading current event is being published.
+  It reads all messages/events then waits for new event
+
+if you dont use --from-beinning option, it reads only last message delivered
+...................................................................................
+ 			Basic Consumer Properties
+
+=>TimeStamp
+
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic todo-topic --from-beginning  --property print.timestamp=true
+CreateTime:1683174520742        Hello IBM
+CreateTime:1683174525906        Hello Kafka
+CreateTime:1683175248417        How are you?
+CreateTime:1683175264446        How is kafka topic
+CreateTime:1683175481732        Kafka enables events streams
+CreateTime:1683175514841        Learn kafka
+.....................................................................................
+				Partition
+.....................................................................................	
+
+What is partition?
+ In order to distribute the "storage and processing of events" in a topic, Kafka uses the concept partition.
+ The topic is made of one or more partition and theses partitions can reside on different nodes in the kafka cluster.
+ 
+The partition is the main unit of stroage for kakfa events, although with tiered storage, which will talk about later.
+
+The partition is also the unit of parallelism.
+
+Events can be produced to a topic in parallel by writing to multiple partitions at the same time. like wise , consumers can spread their workload by individual consumer instances read from different partitions.
+if we only use one partition we effectly use one consumer instance.
+
+By default there is one partition.
+
+Lab : 
+
+How to create multiple  partitions for a given topic?
+How to break the topic into partitions
+
+Create a topic with 2 partitions.
+
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic demo-topic --partitions 2
+Created topic demo-topic	
+
+After supplying partition option you can inside kafka-logs folder
+
+/tmp/kafka-logs
+   |
+    demo-topic-0
+	will have its own log files   
+    demo-topic-1
+        will have its own log files
+
+
+Describe the topic after partitions creation:
+
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic demo-topic
+
+Topic: demo-topic       TopicId: yVjUBGbDQPqEWqW2FAoM8Q PartitionCount: 2   
+ReplicationFactor: 1
+ Configs:
+  Topic: demo-topic       Partition: 0    Leader: 0       Replicas: 0     Isr: 0
+  Topic: demo-topic       Partition: 1    Leader: 0       Replicas: 0     Isr: 0
+
+....................................................................................
+			   Adding more partitions
+.....................................................................................
+
+1.create topic with 2 partitions
+
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic sales-topic --partitions 2
+
+2.Describe topic details
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic sales-topic
+Topic: sales-topic      TopicId: AtEnN2MVT1ylKjm1wdbvxQ PartitionCount: 2       ReplicationFactor: 1    Configs:
+        Topic: sales-topic      Partition: 0    Leader: 0       Replicas: 0     Isr: 0
+        Topic: sales-topic      Partition: 1    Leader: 0       Replicas: 0     Isr: 0
+s
+
+3.Add more partitions
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --alter --topic sales-topic  --partitions 2
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+				Segement
+.................................................................................
+
+Topics are broken into partitions, Partitions are broken into segment.
+
+What is Segment?
+   Segment is nothing single log file.
+Each Segment is stored in a single data file on the disk attached to the broker.
+
+How to list segements(Log files) ?
+subugee@LAPTOP-R2TGGFDL:/tmp/kafka-logs/demo-topic-0$ ls -l
+total 8
+-rw-r--r-- 1 subugee subugee 10485760 May  4 11:28 00000000000000000000.index
+-rw-r--r-- 1 subugee subugee        0 May  4 10:50 00000000000000000000.log
+-rw-r--r-- 1 subugee subugee 10485756 May  4 11:28 00000000000000000000.timeindex
+-rw-r--r-- 1 subugee subugee        8 May  4 11:28 leader-epoch-checkpoint
+-rw-r--r-- 1 subugee subugee       43 May  4 10:50 partition.metadata
+
+Here segment is group of files
+.log
+.index
+.timeindex
+
+Segment is just log file where real/actual(Record/Message) is stored in the form of byte array
+
+.log file is actually stores "Events/Records/Message".
+
+Topics are broken down into partitions, where as a partition is broken down into segements.
+Each Segment is stored in a single data file on the disk attached to the partion(topic)(broker).
+
+Each segment file size may 1 GB of data or week of data, which ever limit is attained first.
+
+When the kafka broker receives data for a partion for eg partion-0, as the segment limit is reached, it will clos the file and starts a new one.
+...................................................................................
+			   Log file /Segment architecture
+...................................................................................
+
+How event/data/message is stored into segment?
+
+The log file is structured with two parts
+
+1.Actual data
+2.Offset 
+
+Actual data is event published into segement as "Record" which is simple byte array.
+Offset:
+   An offset into a file is simply the character location within that file, usually starting with 0; thus "offset 240" is actually the 241st byte in the file.
+
+  h    b  c  d e f g                       =>Actual data
+ -----------------------------------------------------------------------------
+  0    1  2  3 4 5 6 7 8 9 10 11 12 13.... => offset
+ ------------------------------------------------------------------------------
+
+ Segement 0      Segment 1:         segment 2:             Segement3:Active
+offset 0-957=>   offset 958-1675 => offset 1676 to 2453 => Offset:2454-?    <= writes
+
+One one segement can be active at any point in time- the one data is being written to.
+
+The size of the segement is controlled by two broker configuration
+
+log.segment.bytes
+
+The maximum size of a single log file
+
+Type:	int
+Default:	1073741824 (1 gibibyte)
+
+log.segment.ms
+ The time kafka will wait before commiting the segemnt if not full 
+ default : 1 week
+
+Note:
+  A kafa broker keeps an open file handler to every active segement in every partition, even inactive segements.This leads to a usually high number of open file handles, and the OS must be tuned accordingly.
+.....................................................................................
+			 Index Files
+.....................................................................................
 
 
 
