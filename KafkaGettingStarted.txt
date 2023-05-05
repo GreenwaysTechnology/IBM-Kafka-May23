@@ -663,8 +663,7 @@ Option                                   Description
 How to publish events?
   Events are published into topics
 
-./bin/kafka-console-producer.sh --bootstrap-server localhost
-:9092 --topic todo-topic
+./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic todo-topic
 >Hello IBM
 >Hello Kafka
 >
@@ -826,7 +825,7 @@ Create a topic with 2 partitions.
 ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic demo-topic --partitions 2
 Created topic demo-topic	
 
-After supplying partition option you can inside kafka-logs folder
+After supplying partition option you can see inside kafka-logs folder
 
 /tmp/kafka-logs
    |
@@ -894,9 +893,9 @@ Segment is just log file where real/actual(Record/Message) is stored in the form
 Topics are broken down into partitions, where as a partition is broken down into segements.
 Each Segment is stored in a single data file on the disk attached to the partion(topic)(broker).
 
-Each segment file size may 1 GB of data or week of data, which ever limit is attained first.
+Each segment file size may be 1 GB of data or week of data, which ever limit is attained first.
 
-When the kafka broker receives data for a partion for eg partion-0, as the segment limit is reached, it will clos the file and starts a new one.
+When the kafka broker receives data for a partion for eg partion-0, as the segment limit is reached, it will close the file and starts a new one.
 ...................................................................................
 			   Log file /Segment architecture
 ...................................................................................
@@ -920,7 +919,7 @@ Offset:
  Segement 0      Segment 1:         segment 2:             Segement3:Active
 offset 0-957=>   offset 958-1675 => offset 1676 to 2453 => Offset:2454-?    <= writes
 
-One one segement can be active at any point in time- the one data is being written to.
+Onesegement can be active at any point in time- the one data is being written to.
 
 The size of the segement is controlled by two broker configuration
 
@@ -937,9 +936,378 @@ log.segment.ms
 
 Note:
   A kafa broker keeps an open file handler to every active segement in every partition, even inactive segements.This leads to a usually high number of open file handles, and the OS must be tuned accordingly.
+
+....................................................................................
+	    How to break single log(segment) into multiple logs(segment)
+....................................................................................
+Note:
+ In the latest Kafka each log file(segment) will have its own index files
+
+How to configure to create multiple log files?
+Just you have edit config/server.properties
+
+############################# Log Retention Policy #############################
+
+The following configurations control the disposal of log segments. The policy can
+# be set to delete segments after a period of time, or after a given size has accumulated.
+
+Deletion policy:
+
+# A segment will be deleted whenever *either* of these criteria are met. Deletion always happens
+# from the end of the log.
+
+# The minimum age of a log file to be eligible for deletion due to age
+log.retention.hours=168
+
+# A size-based retention policy for logs. Segments are pruned from the log unless the remaining
+# segments drop below log.retention.bytes. Functions independently of log.retention.hours.
+
+#log.retention.bytes=1073741824 (1GB)
+
+Create new log file policy:
+# The maximum size of a log segment file. When this size is reached a new log segment will be created.
+#log.segment.bytes=1073741824(1GB)
+log.segment.bytes=1000
+
+# The interval at which log segments are checked to see if they can be deleted according
+# to the retention policies
+log.retention.check.interval.ms=300000
+
+Lab:
+
+1.Edit server.properties
+log.segment.bytes=1000
+2.start servers zookeeper and kafka server
+3.Start publisher and publish events
+4.see the log locations /tmp/kafka-logs
+
 .....................................................................................
 			 Index Files
 .....................................................................................
+
+Index: 
+contains the mappings  of  "offset" to its position in ".log" file
+Time Index:
+File contains the mappings of timestamp to message offset
+Used to search messages based on timestamp.
+
+if you search message based on offset , it uses index file
+if you search message based on timestamp,it uses time index file.
+....................................................................................
+			Multiple Partitions, log segment policy
+.....................................................................................
+				Topic
+				  |
+		  ----------------------------------				
+		  |          |           |          |
+	      partition-0  partition-1 partition-2 partition-n
+		  |
+	      000000.log
+              000011.log
+              000012.log
+		|
+	      0000.log
+		 |
+	      offset 0 1 2 3 4 ....N
+              byte   x y a b c.....
+             	   |
+	      index and byte position
+              
+....................................................................................
+			       Partitions and Message Distribution
+....................................................................................	  
+What if i have multiple partions, How messages are routed/distributed to Different Partitions?
+
+Publish Message:
+ Producer  default Partitioner and Stick Partitioner:
+.....................................................
+ A Partitioner is the process that will determine to which partition a specific message will be assigned to.
+ In Nutshell Partitioner is simple java class/program, having routing algorthim(which partition to be selected)
+  for eg i have three partition, which partition i have to send "this" message
+
+Record===>Publish====>Partitioner===>decide where to go==> P1 or P2 or P3
+
+How partitions are selected by partitioner?
+  =>Based on Record only
+
+Record contains information for how to select partition.
+
+Partitioner Algorthims:
+.......................
+1.Round Robin Algorthim
+2.Sticky Partitioner Algorthim
+3.Key Based Algorthim.
+
+
+Round Robin Algorthim:
+  This is algorthim used in old kafka less than version no 2.3.
+  Where there is no specific partition is specified, and no key is specified(key is   null),Then round robin algorthim is selected.
+
+  Round robin algorthim distributes messages based on round robin fashion
+
+ eg:
+  i have 6 partition,
+   1st record will go to 1st partition
+   2nd record will go to 2nd partition
+   so until last partition
+   7th message will go to again first partition.
+
+Why round robin is not good?
+   if more messages and more partions , there is possiblity of higher latency and low performance.
+
+
+Sticky Partitioner:
+  This is lastest partitioner algorthim.
+  It looks like round robin only
+  Instead of every distributing messages equally to partions
+  which distributes messages as batch.
+  Batch by Batch messages are sent.
+
+The DefaultPartitioner now uses a sticky partitioning strategy. This means that records for specific topic with null keys and no assigned partition will be sent to the same partition until the batch is ready to be sent. When a new batch is created, a new partition is chosen. This decreases latency to produce, but it may result in uneven distribution of records across partitions in edge cases. Generally users will not be impacted, but this difference may be noticeable in tests and other situations producing records for a very short amount of time.
+
+Batch size can be controlled by 
+ batch.size property
+
+"stick" to a partition until the batch is full or "ligner.ms" has elapsed
+
+After sending the batch, change the partition that is sticky
+This will lead to larger batches, and reduced latency.
+Over time, the records are still spread evenly across partitions, so the balance of the cluster is not affected.
+
+Overall, there some substatial performance improvements by using the stick-partitioner
+
+Sticky Partitioner = Batching + Round Robin
+.....................................................................................
+		
+Lab:
+ How to distribute message without Key :that means we select Sticky Partitioner:
+................................................................................
+
+1.Create topic with two partitions
+
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic mysticky-topic --partitions 2
+
+2.Produce message to the topic
+  ./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mysticky-topic
+ 
+Steps:
+1 enter some message  for some time and watch folders 
+2. stop the producer and restart ,enter messages
+
+Now you can see how messages are distributed. you can notice two partitions are getting data.
+
+Printing Key and Value:
+.......................
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mysticky-topic --from-beginning  --property print.key=true
+
+null    Hello
+null    Hai
+null    welcome
+null    how are you
+null    how things are
+null    how is kafka
+null    how do you think
+null    adskfasfkhsaf
+
+
+Getting partition information via consumer:
+...........................................
+ ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mysticky-topic --from-beginning  --property print.key=true --property print.partition=true
+  
+Partition:1     null    Hello
+Partition:1     null    Hai
+Partition:1     null    welcome
+Partition:1     null    how are you
+Partition:1     null    how things are
+Partition:1     null    how is kafka
+Partition:1     null    how do you think
+Partition:1     null    adskfasfkhsaf
+Partition:1     null    a;dslfkja;fdlksajdf
+Partition:1     null    a;ldskfjas;lfkjads;lkfadsjf
+Partition:1     null    lasdfkjsa;lfdkjsad;flksajf
+Partition:1     null    alsdkfjas;lfdkjsa;flksaf
+Partition:1     null    ;ladskjfsa;lkfjsadf;lk
+Partition:1     null    adlfafjsad;flasfjsa;fdj
+Partition:1     null    asldfj;salfkjsa;flksajf
+Partition:1     null    aldsfjas;lfkjdsa
+Partition:1     null    adf;safkjsalfsakfjsa;lfkjsadf
+Partition:1     null    ;aldjfsa;lkfjdsa;lfkjdsaf
+Partition:1     null    adlskfhaskfhsafdashf
+Partition:1     null    asdlfjsalf;kjsadf;lksajf;salkfja
+Partition:1     null    ;asldkfjas;lfkjdsa;lfkjf
+Partition:1     null    aldsfj;afkjas;lfkjdsaf
+Partition:1     null    lasdkfsa;lfkjsa;lkfsajf;lsakfja
+Partition:1     null    ;adlfkas;flksajf;lsakfjasflkj
+Partition:1     null    a;sdlfkjas;lfkjdsaf
+Partition:1     null    ;ladkfjsa;lfkja;flkajf
+Partition:1     null    kjdakjdfhajfhdsaf
+Partition:1     null    ladkfalfkjadflhadkj
+Partition:1     null    lakdfhalkfjhlfkjhf
+Partition:1     null    ladkfhalkfjhdsaflajdf
+Partition:1     null    ladkfahdlkfjdsahf
+Partition:1     null    ladkfjhdasflkjahfldsakjfh
+Partition:1     null    ladkfjahsdflkajdfhldsakf
+Partition:1     null    laksdhflsadkfjhsalkfjh
+Partition:1     null    laksdjfhsalkdjfhsaldkfj
+Partition:1     null    lakdfadhfksafjh
+Partition:0     null    thi
+Partition:0     null    a;sldkfjadf
+Partition:0     null    aldskfjsalkfd
+Partition:0     null    asdfa;lsdkfjasdlkf
+Partition:0     null    aldsfjadlfkajdf
+Partition:0     null    lkasdjflkdsafj
+Partition:0     null    lasdkfjaldskf
+Partition:0     null    laskdjflsakfjsadf;lkj
+Partition:0     null    a;sldkfjsadlkfjsadf
+Partition:0     null    aldsfkjsa;lfkjsadf;k
+Partition:0     null    asldfkjsa;flkj
+Partition:1     null    asdfasdf
+Partition:1     null    adsfdsaf
+Partition:1     null    adsfasf
+
+Lab :
+You can see live partitions distribution by sending messages  by producer and consumer 
+
+Start two terminals 
+
+1.publisher
+2.consumer
+.....................................................................................
+			Key based Message Distribution
+....................................................................................
+
+1.Create topic with two partitions
+
+./bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic mykeys-topic --partitions 2
+
+2.Produce message to the topic
+  --property
+
+  ./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mykeys-topic --property "parse.key=true" --property "key.separator=:"
+>project:kafka
+>project:java
+>project:microservice
+>client:ibm
+>client:google
+>payment:gpay
+>payment:neft
+>transport:bus
+>skill:java
+
+Consumer
+ ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mykeys-topic --from-beginning  --property print.key=true --property print.value=true  --property print.partition=true
+
+Partition:1     project kafka
+Partition:1     project java
+Partition:1     project microservice
+Partition:1     client  ibm
+Partition:1     client  google
+Partition:1     payment gpay
+Partition:1     payment neft
+Partition:1     transport       bus
+Partition:1     skill   java
+
+How to print offset information?
+ ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mykeys-topic --from-beginning  --property print.key=true --property print.value=true  --property print.partition=true --property print.offset=true
+
+Partition:1     Offset:0        project kafka
+Partition:1     Offset:1        project java
+Partition:1     Offset:2        project microservice
+Partition:1     Offset:3        client  ibm
+Partition:1     Offset:4        client  google
+Partition:1     Offset:5        payment gpay
+Partition:1     Offset:6        payment neft
+Partition:1     Offset:7        transport       bus
+Partition:1     Offset:8        skill   java
+
+
+Sticky-Partitions and offsets
+................................
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic mysticky-topic --from-beginning  --property print.key=true --property print.value=true  --property print.partition=true --property print.offset=true
+Partition:1     Offset:0        null    Hello
+Partition:1     Offset:1        null    Hai
+Partition:1     Offset:2        null    welcome
+Partition:1     Offset:3        null    how are you
+Partition:1     Offset:4        null    how things are
+Partition:1     Offset:5        null    how is kafka
+Partition:1     Offset:6        null    how do you think
+Partition:1     Offset:7        null    adskfasfkhsaf
+Partition:1     Offset:8        null    a;dslfkja;fdlksajdf
+Partition:1     Offset:9        null    a;ldskfjas;lfkjads;lkfadsjf
+Partition:1     Offset:10       null    lasdfkjsa;lfdkjsad;flksajf
+Partition:1     Offset:11       null    alsdkfjas;lfdkjsa;flksaf
+Partition:1     Offset:12       null    ;ladskjfsa;lkfjsadf;lk
+Partition:1     Offset:13       null    adlfafjsad;flasfjsa;fdj
+Partition:1     Offset:14       null    asldfj;salfkjsa;flksajf
+Partition:1     Offset:15       null    aldsfjas;lfkjdsa
+Partition:1     Offset:16       null    adf;safkjsalfsakfjsa;lfkjsadf
+Partition:1     Offset:17       null    ;aldjfsa;lkfjdsa;lfkjdsaf
+Partition:1     Offset:18       null    adlskfhaskfhsafdashf
+Partition:1     Offset:19       null    asdlfjsalf;kjsadf;lksajf;salkfja
+Partition:1     Offset:20       null    ;asldkfjas;lfkjdsa;lfkjf
+Partition:1     Offset:21       null    aldsfj;afkjas;lfkjdsaf
+Partition:1     Offset:22       null    lasdkfsa;lfkjsa;lkfsajf;lsakfja
+Partition:1     Offset:23       null    ;adlfkas;flksajf;lsakfjasflkj
+Partition:1     Offset:24       null    a;sdlfkjas;lfkjdsaf
+Partition:1     Offset:25       null    ;ladkfjsa;lfkja;flkajf
+Partition:1     Offset:26       null    kjdakjdfhajfhdsaf
+Partition:1     Offset:27       null    ladkfalfkjadflhadkj
+Partition:1     Offset:28       null    lakdfhalkfjhlfkjhf
+Partition:1     Offset:29       null    ladkfhalkfjhdsaflajdf
+Partition:1     Offset:30       null    ladkfahdlkfjdsahf
+Partition:1     Offset:31       null    ladkfjhdasflkjahfldsakjfh
+Partition:1     Offset:32       null    ladkfjahsdflkajdfhldsakf
+Partition:1     Offset:33       null    laksdhflsadkfjhsalkfjh
+Partition:1     Offset:34       null    laksdjfhsalkdjfhsaldkfj
+Partition:1     Offset:35       null    lakdfadhfksafjh
+Partition:1     Offset:36       null    asdfasdf
+Partition:1     Offset:37       null    adsfdsaf
+Partition:1     Offset:38       null    adsfasf
+Partition:0     Offset:0        null    thi
+Partition:0     Offset:1        null    a;sldkfjadf
+Partition:0     Offset:2        null    aldskfjsalkfd
+Partition:0     Offset:3        null    asdfa;lsdkfjasdlkf
+Partition:0     Offset:4        null    aldsfjadlfkajdf
+Partition:0     Offset:5        null    lkasdjflkdsafj
+Partition:0     Offset:6        null    lasdkfjaldskf
+Partition:0     Offset:7        null    laskdjflsakfjsadf;lkj
+Partition:0     Offset:8        null    a;sldkfjsadlkfjsadf
+Partition:0     Offset:9        null    aldsfkjsa;lfkjsadf;k
+Partition:0     Offset:10       null    asldfkjsa;flkj
+.....................................................................................
+	How key-value pair messages are distributed to partitions?
+.....................................................................................
+There is algorthim, called Key hashing algorthim.
+Key hashing is the process of determing the mapping of a key to a partition in the default partitioner, the keys are hashed using the mumur2
+
+Targetpartition= Math.abs(Util.murmur2(keyBytes)) % (numPartitions-1)
+.....................................................................................
+
+
+
+
+  
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+		
+
+
+
 
 
 
