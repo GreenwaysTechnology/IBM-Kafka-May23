@@ -1282,16 +1282,202 @@ Key hashing is the process of determing the mapping of a key to a partition in t
 
 Targetpartition= Math.abs(Util.murmur2(keyBytes)) % (numPartitions-1)
 .....................................................................................
+			   Consumer Groups
+....................................................................................
+A Consumer group is set of consumers which cooperate to consume data from some topics.
+
+The partiontions of all the topics are divided among the consumers in the group
+As new group members arrive and old members leave,the partitions re assigened so that each member receices a proportional share of partitions,This is called as "rebalancing group".
+
+The group management is managed by "zookeeper or kraft".
+
+How to implement consumer group?
+
+Lab:
+
+1.create a topic with atleast 2 partiions and send data to it.
+
+2.create a first kafka-console-consumer and assign a group name with "--group"
+
+3.open a new terminal
+
+4.create a second kafka-console-consumer and use the same --group argument.
+
+5.send data to topic and you will see consumers sharing the reads.
+
+Start Zookeeper:
+
+ ./bin/zookeeper-server-start.sh -daemon config/zookeeper.properties
+
+Start Kafka Server:
+
+ ./bin/kafka-server-start.sh -daemon  config/server.properties
 
 
-
-
-  
-
-
-
-
+create topic:
+ ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --topic my-group-topic --create  --partitions 3 --replication-factor 1
  
+ 
+Start two terminals
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic my-group-topic --group my-group
+./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic my-group-topic --group my-group
+
+Procducer
+./bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic my-group-topic
+
+Messages are distributed based on round robin fashion...
+
+Consumer groups are helping to distribute large messages into multiple consumers
+.....................................................................................
+			 Kafka Internal Architecture
+....................................................................................
+
+Kafka broker and cluster contains two major components.
+
+1.Control Plane
+2.Data Plane
+
+Kafaka cluster is broken into two segement
+
+1.Meta data management
+   It is nothing but to take care of Managing the entire cluster   
+2.Actual data storage
+   Where actual data is stored.
+
+.................................................................................
+				Kafka Request
+
+Client requests in kafka fall into two category
+
+=>Produce Request and fetch requests.
+    A produce requestis requesting that a batch of data to be written into  a specified topic (producers)
+
+=>Fetch Request:
+   A request is requesting data from kafa topics(consumers)
+
+
+Internal work flow for both producer request (produce request) and consumer (consume request) remanins same.
+
+....................................................................................
+				Produce Request
+...................................................................................
+
+When a producer is ready to send an event record.
+
+What is event Record?
+  Event Record is nothing the message what we sent from the producer, the message structure /event structure is called "Record".
+
+Record consits of the following properties:
+
+1.timestamp
+2.key
+3.value
+4.Headers
+
+
+When a producer is ready to send an event record,it will use a configurable partitioner to determine the topic partition to assign to the record.
+
+if record has key, then the default partitioner will use a hash of the key to determine the correct partition.
+if any records with same key will always be assigned to the same partition.
+if the record has no key then a partitioner startegy is used to balance the data in the partitions.
+
+
+Record Batch:
+ Records are accumulated into  record batch. 
+ Sending records one at a time would be inefficeint due to the over head of the  network requests   
+ So the Producer will accumulate the records assigned to a given partition into  batches.
+ Batches provides for much more effective compression when compression is used
+
+The producer has control as to when the record batch should be drained and sent to the broker 
+  =This is controlled by two properties
+   =>One is by time
+   =>The another is size
+
+So once enough time or enough data has been accumulated in those record batches, those record batches will be drained, and will form a produce request.
+Then record batches will be sent to the broker. 
+.....................................................................................
+			-Inside Broker-Network Thread Adds Request to Queue
+.....................................................................................
+
+Socket Receive Buffer:
+.....................
+ The Produce Request first lands in the broker's Socket Receive Buffer.
+
+Network Thread:
+...............
+  From the socket Receiver buffer, the network thread will pick up the RecordBatch.
+  The Network thread is created from the Thread Pool.
+  The Network thread will read the data from the socket receive buffer.
+  That network thread will handle that particular client request through the rest of   its life cycle.
+  The thread forms "Produce Request Object" and add it to the "Request Queue"
+
+
+Client====>Record====>[RecordBatch]====>Broker's Socket Recieve Buffer==>Thread reads Record Batch===>Forms a [Produce Request Object]===>Produce Request Object added into Request Queue.
+.....................................................................................
+				IO Threads
+.....................................................................................
+
+IO threads are nothing but non blocking threads.
+
+IO operations are performed by
+
+1.Blocking IO
+   Dedicated threads are created and works for each io operation
+2.NonBlocking IO
+  Shared threads are created and shared among multiple io operations
+
+Network threads are blocking io threads , its job is just read batches from the socket receive buffer and writes into request Queue as Request Produce Object.
+
+IO threads are non blocking threads.
+
+Role of IO Threads:
+..................
+=>A thread from the I/O thread pool will pick up the request from the Queue.
+=>The I/O thread will perform some validations
+    =>CRC check of the data in the request
+    =>Once the validation is over,it will append the data to the physical data       structure of the partition which is commit log.
+
+
+Kafka Phsyical Storage:
+.......................
+=>On the disk, the commit log is organized  as collection of segments.
+=>Each segment is made up of serval files.
+=>One of these is a ".log" file, contains event data.
+=>The second a ".index" file, contains a index structure, which maps form a record offset to the position of that record in the .log file.
+.....................................................................................
+			 Purgatory
+....................................................................................
+
+Purgator is the place where data to be replicated to other brokers.
+Kafka relies on replication to multiple broker nodes.
+
+Replication:  
+   Copying the event records across multiple brokers in the cluster
+   Replication makes your events highly available and saves from the fail over
+
+By default , the broker will not give response(ack) on the produce request until it has been replicated to other brokers.
+
+Purgatory Map:
+ To avoid tying up the IO threads while waiting for the replication step to complete
+The request object will be stored in a map-like data structure called "Purgatory Map"
+
+ Map is just like another buffer , for replication
+ From the Map replication starts.
+.....................................................................................
+			 Response Generation
+.....................................................................................
+
+Once the request has been fully replicated, the broker will take the request object out of purgatory, generate a reponse object and place in the response buffer/queue
+
+From the response queue, the network thread will pick up the generated response, and send its data to the socket send buffer.
+
+The network thread also enforces ordering of requests from an indidual client by waiting for all of the bytes for response from the client to be sent before taking another object from the response queue.
+.....................................................................................
+				 Page Cache
+.....................................................................................
+Page is like files/data written to disk, ,its index/meta cached by Main Memory.
+Before writing data into disk , the kafka writes data into page cache. in order improve disk io the linux operating system provides this feature , kafka uses this feature to write very fast.
+.....................................................................................
 
 
 
