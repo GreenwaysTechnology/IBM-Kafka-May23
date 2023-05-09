@@ -1478,24 +1478,206 @@ The network thread also enforces ordering of requests from an indidual client by
 Page is like files/data written to disk, ,its index/meta cached by Main Memory.
 Before writing data into disk , the kafka writes data into page cache. in order improve disk io the linux operating system provides this feature , kafka uses this feature to write very fast.
 .....................................................................................
+				Fetch Request-Consumer Side
+....................................................................................
+
+In order to consume records, a consumer client sends a fetch request to the broker
+by specifing the topic,partition,and offset it wants to consume.
+The fetch request goes to the broker's socket receive buffer where it is picked by a network thread.
+The network thread puts the request in the request queue, as was done with the produce request.
+
+The I/O thread will take the offset that is included in the fetch request and compare it with the .index file that is part of the partition segment. 
+
+That will tell it exactly the range of bytes that need to be read from the corresponding .log file to add to the response object.
 
 
+However, it would be inefficient to send a response with every record fetched, or even worse, when there are no records available.
 
+To be more efficient, consumers can be configured to wait for a minimum number of bytes of data, or to wait for a maximum amount of time before returning a response to a fetch request. 
 
+While waiting for these criteria to be met, the fetch request is sent to purgatory
 
+Once the size or time requirements have been met, the broker will take the fetch request out of purgatory and generate a response to be sent back to the client. The rest of the process is the same as the produce request.
 
+Data is reterived from the page cache in order to avoid most disk access.
 
+.....................................................................................				 Data Plane:Replication Protocal
+.....................................................................................
 
+In this module we will look at how the data plane handles data replication.
+Because distributed commit log system.
 
+Data replication is a critical feature of kafka that allows it to provide high durability and availablity.
 
+How to enable replication?
 
+When create new topic,we can enable replication at the topic level.
 
+When we create new topic, we can specify, explicitly or through defaults, how many replicas you want.
+
+eg:
+ ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --topic my-group-topic --create  --partitions 3 --replication-factor 2
+
+Replication factor :
+ Each partition of that topic will be replicated that (1) many times.
+
+my-group-topic partion data to be avilable in 1 machine.
+
+ ./bin/kafka-topics.sh --bootstrap-server localhost:9092 --topic my-group-topic --create  --partitions 3 --replication-factor 3
+
+With a replication factor of N, we can tolerate N-1 failure,without data loss, and while mainitaing availability.
+..................................................................................
+		   Leader,Follower, and In-Sync Replica(ISR) List
+..................................................................................
+
+Leader:
+ The leader is a broker whose responsbility getting records from producer and send response to the client and also receive fetch request from the consumers
+
+Followers:
+  The brokes who has the copy of records of the master.
+
+ISR List:
+  The group of machines/brokers as part of the cluster called "In Sync replica"
+..................................................................................
+				Leader Epoch
+..................................................................................
+
+Each leader is associated with a unique, monotonically increasing number called the leader epoch. 
+The epoch is used to keep track of what work was done while this replica was the leader and it will be increased whenever a new leader is elected. The leader epoch is very important for things like log reconciliation, which we’ll discuss shortly.
+...................................................................................
+			 Communication between leader and follower replicas
+....................................................................................
 		
+The follower replica only starts communicating with leader "asking records" in order to replicate.
+This involves two cycles
+=>Request
+   Follower gives request
+=>Response
+   Leader gives response
+
+Request Structure:
+..................
+Inital request 
+ 
+ {
+   offset:0	
+ }
+
+Leader Reponse:
+The leader will respond to the fetch request with the records starting at the specified offset.
+ The fetch response will also include the offset for each record and the current leader epoch. 
+The followers will then append those records to their own local logs.
+
+Response Structure:
+
+records:[
+ (offset:0,epoch:1),
+ (offset:1,epoch:1),
+ (offset:2,epoch:1)
+]
+....................................................................................
+				Commiting offset partitions
 
 
+Once all of the followers in the ISR have fetched up to a particular offset, the records up to that offset are considered committed and are available for consumers. This is designated by the high watermark.
+
+The leader is made aware of the highest offset fetched by the followers through the offset value sent in the fetch requests
+
+For example, if a follower sends a fetch request to the leader that specifies offset 3, the leader knows that this follower has committed all records up to offset 3. Once all of the followers have reached offset 3, the leader will advance the high watermark accordingly.
+....................................................................................
+			Advancing the follower High Watermark
+.....................................................................................
+The leader, in turn, uses the fetch response to inform followers of the current high watermark. 
+
+Because this process is asynchronous, the followers’ high watermark will typically lag behind the actual high watermark held by the leader.
+
+Response structure with Leader WaterMark Position:
+
+FetchReponse
+{
+   HighWaterMarkOffset:3,
+   records:[
+    (offset:3, epoch:1),
+    (offset:4, epoch:1)
+   ]
+}
+...................................................................................
+			Handling leader failure
+...................................................................................
+If a leader fails, or if for some other reason we need to choose a new leader, one of the brokers in the ISR will be chosen as the new leader. The process of leader election and notification of affected followers is handled by the control plane. The important thing for the data plane is that no data is lost in the process. That is why a new leader can only be selected from the ISR, unless the topic has been specifically configured to allow replicas that are not in sync to be selected. We know that all of the replicas in the ISR are up to date with the latest committed offset.
+Once a new leader is elected, the leader epoch will be incremented and the new leader will begin accepting produce requests.
 
 
+Temporary Decreased High Watermark:
+When a new leader is elected, its high watermark could be less than the actual high watermark. If this happens, any fetch requests for an offset that is between the current leader’s high watermark and the actual will trigger a retriable OFFSET_NOT_AVAILABLE error. The consumer will continue trying to fetch until the high watermark is updated, at which point processing will continue as normal	
+....................................................................................
+			Partition Replica Reconilation
+.....................................................................................
 
+Immediately after a new leader election, it is possible that some replicas may have uncommitted records that are out of sync with the new leader. 
+
+This is why the leader's high watermark is not current yet. It can’t be until it knows the offset that each follower has caught up to.
+
+ We can’t move forward until this is resolved. This is done through a process called replica reconciliation. 
+
+The first step in reconciliation begins when the out-of-sync follower sends a fetch request. 
+In our example, the request shows that the follower is fetching an offset that is higher than the high watermark for its current epoch.
+.....................................................................................				 Follower Truncates log to Match Leader log
+.....................................................................................
+
+The follower will use the information in the fetch response to truncate the extraneous data so that it will be in sync with the leader.
+...................................................................................
+			Subsequent Fetch with Updated Offset and Epoch
+Now the follower can send that fetch request again, but this time with the correct offset.
+.....................................................................................		Subsequent Fetch with Updated Offset and Epoch
+
+Now the follower can send that fetch request again, but this time with the correct offset.
+.....................................................................................
+			Follower broker 102 reconciled
+.................................................................................
+
+Structure of Response after reconcilation:
+.......................................
+
+FetchReponse
+ {
+   HighwatermarkOffset:3,
+   records:[
+     (offset:3,epoch 2),
+     (offset:4 ,epoch 2)
+   ]
+ }
+
+.....................................................................................
+			Follower 102 Acknowledges New Records
+....................................................................................
+
+When the follower fetches again, the offset that it passes will inform the leader that it has caught up and the leader will be able to increase the high watermark. At this point the leader and follower are fully reconciled, but we are still in an under replicated state because not all of the replicas are in the ISR. Depending on configuration, we can operate in this state, but it’s certainly not ideal.
+.....................................................................................
+			Follower 101 Rejoins the Cluster
+.....................................................................................
+
+At some point, hopefully soon, the failed replica broker will come back online. It will then go through the same reconciliation process that we just described. Once it is done reconciling and is caught up with the new leader, it will be added back to the ISR and we will be back in our happy place.
+.....................................................................................
+			Handling Failed or Slow Followers
+
+Obviously when a leader fails, it’s a bigger deal, but we also need to handle follower failures as well as followers that are running slow. The leader monitors the progress of its followers. If a configurable amount of time elapses since a follower was last fully caught up, the leader will remove that follower from the in-sync replica set. This allows the leader to advance the high watermark so that consumers can continue consuming current data. If the follower comes back online or otherwise gets its act together and catches up to the leader, then it will be added back to the ISR.
+.....................................................................................
+				 Data Plane
+....................................................................................
+
+1.Produce Request handling
+2.Fetch Request Handling
+3.Replication Process
+....................................................................................
+				 Control Plane
+.....................................................................................
+
+1.zookeeper
+2.kraft
+.....................................................................................
+				Cluster Setup With zookeeper and Kraft
+....................................................................................
 
 
 
