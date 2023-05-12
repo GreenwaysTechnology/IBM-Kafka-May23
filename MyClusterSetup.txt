@@ -1,0 +1,80 @@
+https://adityasridhar.com/posts/how-to-easily-install-kafka-without-zookeeper
+
+LAPTOP-R2TGGFDL:~/kafka-session/kafka-3.4.0-src/config/kraft
+
+cp server.properties server1.properties
+
+
+server1.properties
+
+node.id=1
+  The id of the node to identify in the cluster
+
+process.roles=broker,controller
+   It is acting as broker and controller
+
+controller.quorum.voters=1@localhost:19092,2@localhost:19093,3@localhost:19094
+
+  Here we start three servers , how they interact each other.
+  controllers run at 19093,19094,19095,19095 , brokers run at 9093,9094,9095
+
+
+listeners=PLAINTEXT://:9092,CONTROLLER://:19092
+
+
+# A comma separated list of directories under which to store log files
+log.dirs=/tmp/server1/kraft-combined-logs
+
+
+copy same config for other two servers
+
+cp server1.properties server2.properties
+cp server1.properties server3.properties
+
+edit server2.properties
+node.id=2
+controller.quorum.voters=1@localhost:19092,2@localhost:19093,3@localhost:19094
+listeners=PLAINTEXT://:9093,CONTROLLER://:19093
+advertised.listeners=PLAINTEXT://localhost:9093
+log.dirs=/tmp/server2/kraft-combined-logs
+
+server3.properties
+node.id=3
+listeners=PLAINTEXT://:9094,CONTROLLER://:19094
+advertised.listeners=PLAINTEXT://localhost:9094
+log.dirs=/tmp/server3/kraft-combined-logs
+
+
+
+we need unique cluster id in order to interact.
+
+We need to generate unique id 
+
+subugee@LAPTOP-R2TGGFDL:~/kafka-session/kafka-3.4.0-src$ ./bin/kafka-storage.sh random-uuid
+OL_o-zjJQ0eVAGe80nkMcw
+
+we need to format the log dir locations before storing any logs
+
+./bin/kafka-storage.sh format -t OL_o-zjJQ0eVAGe80nkMcw -c ./
+config/kraft/server1.properties
+
+	Formatting /tmp/server1/kraft-combined-logs with metadata.version 3.4-IV0.
+
+./bin/kafka-storage.sh format -t OL_o-zjJQ0eVAGe80nkMcw -c ./
+config/kraft/server2.properties
+
+Formatting /tmp/server2/kraft-combined-logs with metadata.version 3.4-IV0.
+
+./bin/kafka-storage.sh format -t OL_o-zjJQ0eVAGe80nkMcw -c ./
+config/kraft/server3.properties
+Formatting /tmp/server3/kraft-combined-logs with metadata.version 3.4-IV0.
+
+start kafka servers:
+
+Setup kafka heap properties
+export KAFKA_HEAP_OPTS="-Xmx200M -Xms100M"
+
+start servers
+ subugee@LAPTOP-R2TGGFDL:~/kafka-session/kafka-3.4.0-src$ ./bin/kafka-server-start.sh -daemon ./config/kraft/server1.properties
+subugee@LAPTOP-R2TGGFDL:~/kafka-session/kafka-3.4.0-src$ ./bin/kafka-server-start.sh -daemon ./config/kraft/server2.properties
+subugee@LAPTOP-R2TGGFDL:~/kafka-session/kafka-3.4.0-src$ ./bin/kafka-server-start.sh -daemon ./config/kraft/server3.properties

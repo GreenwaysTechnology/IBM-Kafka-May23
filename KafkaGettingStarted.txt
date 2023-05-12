@@ -1935,4 +1935,285 @@ Step 12: produce and consume
 
 
 Now you are entering message in 9093 node, but messages are delivered via 9093 which means the data is distributed across the cluster
----------------------------------********************............................
+---------------------------------********************...............................
+			  Kafka Streams
+....................................................................................
+
+Logs,brokers, topics:
+.....................
+
+=>At the heart of kafka is the log which is simply a file where records are appended.
+=>The log is immutable.
+=>You store log information inside single log file, where as infite amount of data you cant store into single log , you have to spilt into multiple logs => partiontions,segments.
+=>The storage layer of kafka is called a broker, and the log resides on the broker's file system.
+
+Getting records into and out of Brokers: Producers and consumers
+..................................................................
+
+ =>you put data into kafka with producers and get it out with consumers.
+ =>Producers send a produce request with records to the log.
+ =>Each record, as it arrives, is given a special number called an offset
+ =>offset is just logical position of that record in the log.
+
+=>Consumers send fetch request to read records, and they use the offset to book mark,like place holders. for eg consumer will read up to offset number 5 and when it comes back, it will start reading at offset number 6.
+
+=>Consumers are organized into group with partition data is distributed among the memembers of the group.
+
+Connectors:
+..........
+ =>Connectors are an abstraction over producers and consumers.
+ =>for eg , if you export database records to kafka how do you do? 
+ =>you configure a source connector to listen to certain to database tables
+   (CDC Pipelines) = Change Data Capture.
+ =>As records comes in, the connector pulls them out and sends them into kafka.
+ =>Sink connectors do the opposite: if you want to write records to an external store such as mongodb, for eg, sink connectors read records from a topic as they come in and forwards them to your Mongodb instance
+
+Source connector=> Bring data into kafka from datasources
+Sink connector=>Read data from the kafka into another datasource.
+
+
+Streaming Engine:
+................
+
+Kafka Steams is an abstraction over producers and consumers that let you ignore low level details and focus on processing your kafka data.
+
+Kafka Streams are written in java, kafka streams are just java code.
+
+eg:
+Producers produce sequence of stock prices which we need to store into topic and then consumers will read data from the topic.
+
+if i want to process the data from the topic, data transformations,data filtering, data merging.
+
+Streaming is all about how we process events.
+
+Kafka stream processing just java apis ,so you can run any from laptop to large servers,cloud.
+
+eg:
+ Temperature
+
+  {
+    "sensorid": "ss-01"
+     "reading_ts": "2023-05-12 10:29:34",
+     "production_line" :"w01",
+     "widget_type":"acme94",
+     "temp_celsius":23,
+     "widget_weight_g":100
+  }
+
+Here i want extract low temperature and high temperature in a day  and a week and in year, in time.
+
+Java code snipet:
+
+StreamBuilder builder=new StreamBuilder();
+builder.stream("wideget_topic", Consumed.with(a,b).filter(key,w)->w.getColor.equals('red').to('widegets-red').....
+
+Stream operation:
+->Mapping is used to transform the event data from one shape to another shape
+->Filtering is used to filter based on boolean conditions like i want only low temp
+.....................................................................................
+				Schema Registry
+.....................................................................................
+
+Modern applications handle different format of data or type of data like json,xml,avro,protobuf.....
+
+Schema registory provides a centeralized repository for mananging and validating "schemas-formats" for message data, and for seralization and deseralization of the data of the data over the network.
+
+Serialization is the process of converting application data format into kafka format like json to kafka binary format
+Deserialization is the process of converting kakfa topic format into application format like - byte array to json....
+
+
+Producers and consumers  to kafka topics can use the schemas to ensure data consistency and compatibillity as schemas evolve.
+
+Schema reigstery is key component for data goverence, helping to ensure data quality ,adherence to standards, visibility into data lineage,audit capabilities.
+
+Schema registry provided by confluent kafka...
+.....................................................................................
+			  KSQLDB
+.....................................................................................
+
+What is KsqlDB?
+ The database purpose-built for stream processing applications.
+  KSqlDb is technology built for kafka to process events using more declarative looks like traditional sql like syntax- create table,create stream,select,insert,update
+
+Why kSqldb?
+ Kafka streams works very well as a java based stream processing api, both to build scalable,standalone stream processing applications and to enrich java applications with stream processing functionality that complements their other functions.
+
+But what if you dont have an existing env or app to java? what if you find it advantageious from an arhitectural or operational perspective to deploy a stream processing job without its own web interface or API to expose result to the front end?
+    "This is where ksqlDB comes in"
+
+
+KSQLDb is a highly sepcialized kind of database that is optimized for a streaming processing applications.
+
+It runs on a scable falut tolerant cluster of its own, exposing REST api to other applications.
+
+The KSql db offers SQL like syntax.
+....................................................................................
+				Steps to implement KSQL Databse
+.....................................................................................
+
+How to start Ksql db?
+
+1. Get standalone ksqlDB
+Since ksqlDB runs natively on Apache Kafka®, you'll need to have a Kafka cluster that ksqlDB is configured to use. Use the steps to the right to install the latest release of ksqlDB.
+
+Note: This guide assumes that your machine is configured with a supported JVM.
+
+Many setup formats
+
+1.stand alone setup
+ -> you can install ksql db manually.
+ -> you can install sql db via docker.
+
+I am going to show how to install ksql db in standalone linux server
+
+
+Setup:
+
+# Install basic software
+sudo apt update
+sudo apt install -y software-properties-common curl gnupg
+
+# Import the public key
+curl -sq http://ksqldb-packages.s3.amazonaws.com/deb/0.28/archive.key | sudo apt-key add -
+
+# Add the ksqlDB apt repository
+sudo add-apt-repository "deb http://ksqldb-packages.s3.amazonaws.com/deb/0.28 stable main"
+sudo apt update
+
+# Install the package
+sudo apt install confluent-ksqldb
+
+
+2. Configure ksqlDB server
+
+Ensure your ksqlDB server has network connectivity to Kafka.
+
+Edit the highlighted line in /etc/ksqldb/ksql-server.properties to match your Kafka hostname and port.
+
+
+ksql-server.properties 
+
+#------ Kafka -------
+
+# The set of Kafka brokers to bootstrap Kafka cluster information from:
+bootstrap.servers=localhost:9092
+            
+# Enable snappy compression for the Kafka producers
+compression.type=snappy
+
+
+3. Start ksqlDB's server
+	When you're ready to run it as a service, you'll want to manage ksqlDB with something like systemd.
+
+ sudo /usr/bin/ksql-server-start /etc/ksqldb/ksql-server.properties
+.....................................................................................
+			In order to write stream processing 
+			    we need cli 
+
+/usr/bin/ksql http://0.0.0.0:8088
+
+.....................................................................................
+Programming with KSql db:
+
+Create Stream:
+
+Stream:
+  A Stream is a partioned,immutable,append-only collection that represents a series of historical facts.
+for eg a transactions like "subramanian sent 1000 rs to karthik" , followed by "Ram sent 10000rs to Murali"
+
+Once a row is inserted into a stream, it can never change.
+A new row is appeneded at end of the stream but existings rows never be updated or deleted.
+
+Each row is stored in a particular partions,Each row implicitly or explictly has  a key that represents its identity..All rows with same key redside in the same partition.
+
+Materialized View:
+ The View of data that is merged from different data sets and projected as one single data set.
+
+Tables:
+  A table is mutable , partitioned collection that models change over time. In contrast with strea, which reprents histrical sequeance of events, a table represents what is true a of now. 
+for you can use table to model the locations where some has lived as a stream first chennai,the delhi and then london and so forth...
+
+How tables work?
+ Tables work leveraging the keys of each row, if a sequence of rows shares a key, the last row for a given key represents the most up-to-date information for that key's identity.
+
+The first we need to create stream.
+The scream essentially assoicates a schema with underlying kafak topic
+
+CREATE STREAM riderLocations (profileId VARCHAR, latitude DOUBLE, longitude DOUBLE)
+  WITH (kafka_topic='locations', value_format='json', partitions=1);
+
+kafka_topic :
+  The name of the topic where stream data lives
+value_format => encoding message format
+fields are going to be json keys
+
+ {
+  "profileId" : "1"
+  "latitude":11.444,
+  "longitude" : 45.87
+ }
+
+partitiions:
+  No of partitions to store topic
+
+
+1.Create Stream:
+
+CREATE STREAM riderLocations (profileId VARCHAR, latitude DOUBLE, longitude DOUBLE)
+  WITH (kafka_topic='locations', value_format='json', partitions=1);
+
+Create View to View(Materialized View):
+.......................................
+Use case : i want to track the live current location of each rider.
+
+CREATE TABLE currentLocation AS
+  SELECT profileId,
+         LATEST_BY_OFFSET(latitude) AS la,
+         LATEST_BY_OFFSET(longitude) AS lo
+  FROM riderlocations
+  GROUP BY profileId
+  EMIT CHANGES;
+
+Use case : I want to know the rider's MountView
+
+CREATE TABLE ridersNearMountainView AS
+  SELECT ROUND(GEO_DISTANCE(la, lo, 37.4133, -122.1162), -1) AS distanceInMiles,
+         COLLECT_LIST(profileId) AS riders,
+         COUNT(*) AS count
+  FROM currentLocation
+  GROUP BY ROUND(GEO_DISTANCE(la, lo, 37.4133, -122.1162), -1);
+
+7.Run a push query over the stream
+-- Mountain View lat, long: 37.4133, -122.1162
+
+SELECT * FROM riderLocations
+  WHERE GEO_DISTANCE(latitude, longitude, 37.4133, -122.1162) <= 5 EMIT CHANGES;
+
+
+ 8. Start another CLI session
+Since the CLI session from (6) is busy waiting for output from the push query, let's start another session that we can use to write some data into ksqlDB.
+
+/usr/bin/ksql http://0.0.0.0:8088
+
+9. Populate the stream with events
+
+Run each of the given INSERT statements within the new CLI session, and keep an eye on the CLI session from (5) as you do.
+
+
+The push query will output matching rows in real time as soon as they're written to the riderLocations stream
+
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('c2309eec', 37.7877, -122.4205);
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('18f4ea86', 37.3903, -122.0643);
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('4ab5cbad', 37.3952, -122.0813);
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('8b6eae59', 37.3944, -122.0813);
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('4a7c7b41', 37.4049, -122.0822);
+INSERT INTO riderLocations (profileId, latitude, longitude) VALUES ('4ddad000', 37.7857, -122.4011);
+
+10. Run a Pull query against the materialized view
+Finally, we run a pull query against the materialized view to retrieve all the riders that are currently within 10 miles from Mountain View.
+
+In contrast to the previous push query which runs continuously, the pull query follows a traditional request-response model retrieving the latest result from the materialized view
+
+
+SELECT * from ridersNearMountainView WHERE distanceInMiles <= 10;
+******************************************....**************************************
